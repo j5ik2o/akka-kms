@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option java_package = "gdpr.serialization";
+option optimize_for = SPEED;
+
+message WithDataSubjectId {
+    string data_subjectId = 1;
+    bytes payload = 2;
+    int32 serializer_id = 3;
+    string manifest = 4;
+}
