@@ -1,6 +1,6 @@
 val akka26Version = "2.6.4"
 
-name := "akka-persistence-gdpr"
+name := "gdpr-assist"
 
 version := "0.1"
 
