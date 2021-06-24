@@ -1,39 +1,59 @@
 package gdpr
 
-import java.nio.charset.StandardCharsets
-import java.util.Base64
-
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
-import com.github.j5ik2o.reactive.aws.kms.KmsAsyncClient
+import com.github.j5ik2o.dockerController.localstack.{LocalStackController, Service}
+import com.github.j5ik2o.dockerController.{DockerController, DockerControllerSpecSupport, RandomPortUtil, WaitPredicates}
 import com.sun.crypto.provider.SunJCE
 import gdpr.CipherActor._
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.time.{Second, Seconds, Span}
-import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider
-import software.amazon.awssdk.services.kms.{
-  KmsAsyncClient => JavaKmsAsyncClient
-}
+import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, AwsCredentials, ProfileCredentialsProvider, StaticCredentialsProvider}
+import software.amazon.awssdk.services.kms.{KmsAsyncClient => JavaKmsAsyncClient}
 
-class CipherActorSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLike {
-  implicit val pc = PatienceConfig(Span(20, Seconds), Span(1, Second))
+import java.net.URI
+import java.nio.charset.StandardCharsets
+import java.util.Base64
+import scala.concurrent.duration.Duration
+import scala.jdk.FutureConverters.CompletionStageOps
+
+class CipherActorSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLike with DockerControllerSpecSupport {
+  val accessKeyId: String         = "AKIAIOSFODNN7EXAMPLE"
+  val secretAccessKey: String     = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  val hostPortForKMS: Int          = RandomPortUtil.temporaryServerPort()
+  val controller: LocalStackController =
+    LocalStackController(dockerClient)(
+      Set(Service.KMS),
+      Map(Service.KMS -> hostPortForKMS),
+      defaultRegion = None
+    )
+
+
+  override protected val dockerControllers: Vector[DockerController] = Vector(controller)
+  override protected val waitPredicatesSettings: Map[DockerController, WaitPredicateSetting] =  Map(
+    controller -> WaitPredicateSetting(Duration.Inf, WaitPredicates.forListeningHostTcpPort(dockerHost, hostPortForKMS))
+  )
+
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(Span(20, Seconds), Span(1, Second))
+
   "EncryptionService" - {
     "encrypt" in {
       import java.security.Security
       Security.addProvider(new SunJCE)
 
-      val awsCredentialsProvider: Option[ProfileCredentialsProvider] =
-        Some(ProfileCredentialsProvider.create("gdpr"))
+      val awsCredentialsProvider: Option[StaticCredentialsProvider] =
+        Some(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKeyId, secretAccessKey)))
       val javaAsyncClientBuilder = JavaKmsAsyncClient.builder()
-      val javaAsyncClient = awsCredentialsProvider match {
+      val javaAsyncClient: JavaKmsAsyncClient = awsCredentialsProvider match {
         case None    => javaAsyncClientBuilder.build()
-        case Some(c) => javaAsyncClientBuilder.credentialsProvider(c).build()
+        case Some(c) => javaAsyncClientBuilder.credentialsProvider(c).endpointOverride(URI.create(s"http://${dockerHost}:${hostPortForKMS}")).build()
       }
-      val kmsAsyncClient: KmsAsyncClient = KmsAsyncClient(javaAsyncClient)
+      val key = javaAsyncClient.createKey().asScala.futureValue
+
       val awsKms = KeyManagement.ofAwsKMS(
-        kmsAsyncClient,
-        "arn:aws:kms:ap-northeast-1:738575627980:key/067523e6-adbb-4e5f-a6ed-ed9388de410c"
+        javaAsyncClient,
+        key.keyMetadata().keyId()
       )
-      val ref = spawn(CipherActor.behavior(awsKms))
+      val ref = spawn(CipherActor(awsKms))
 
       def encryptAndDecrypt(str: String, dataSubjectId: String) = {
         println("-------------------------")
@@ -61,5 +81,4 @@ class CipherActorSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLike {
 
     }
   }
-
 }

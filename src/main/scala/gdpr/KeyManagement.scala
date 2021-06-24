@@ -1,17 +1,14 @@
 package gdpr
 
-import com.github.j5ik2o.reactive.aws.kms.KmsAsyncClient
+import software.amazon.awssdk.core.SdkBytes
+import software.amazon.awssdk.services.kms.KmsAsyncClient
+import software.amazon.awssdk.services.kms.model.{DataKeySpec, DecryptRequest, GenerateDataKeyRequest}
+
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
-import software.amazon.awssdk.core.SdkBytes
-import software.amazon.awssdk.services.kms.model.{
-  DataKeySpec,
-  DecryptRequest,
-  GenerateDataKeyRequest
-}
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
+import scala.jdk.FutureConverters._
 
 case class EncryptedDataKeyWithSecretKey(encryptedDataKey: Array[Byte],
                                          secretKey: SecretKey)
@@ -48,7 +45,7 @@ final class AwsKMS(kmsClient: KmsAsyncClient, keyId: String)
       .encryptionContext(Map("dataSubjectId" -> dataSubjectId).asJava)
       .build()
     kmsClient
-      .generateDataKey(request)
+      .generateDataKey(request).asScala
       .map { response =>
         val secretKeySpec =
           new SecretKeySpec(response.plaintext().asByteArray(), "AES")
@@ -68,7 +65,7 @@ final class AwsKMS(kmsClient: KmsAsyncClient, keyId: String)
       .encryptionContext(Map("dataSubjectId" -> dataSubjectId).asJava)
       .build()
     kmsClient
-      .decrypt(request)
+      .decrypt(request).asScala
       .map { response =>
         val rawKey = response.plaintext().asByteArray()
         new SecretKeySpec(rawKey, "AES")

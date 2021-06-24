@@ -190,9 +190,9 @@ object CipherActor {
     }
   }
 
-  def behavior(
+  def apply(
     keyManagement: KeyManagement,
-    dataKeyDuration: FiniteDuration = 30 seconds
+    dataKeyDuration: FiniteDuration = 30.seconds
   ): Behavior[Command] =
     Behaviors.setup { ctx =>
       import ctx.executionContext
