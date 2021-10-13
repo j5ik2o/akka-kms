@@ -15,22 +15,23 @@ import java.nio.charset.StandardCharsets
 import java.util.Base64
 import scala.concurrent.duration.Duration
 import scala.jdk.FutureConverters.CompletionStageOps
+import scala.sys.env
 
 class CipherActorSpec extends ScalaTestWithActorTestKit with AnyFreeSpecLike with DockerControllerSpecSupport {
   val accessKeyId: String         = "AKIAIOSFODNN7EXAMPLE"
   val secretAccessKey: String     = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
   val hostPortForKMS: Int          = RandomPortUtil.temporaryServerPort()
+
   val controller: LocalStackController =
     LocalStackController(dockerClient)(
       Set(Service.KMS),
-      Map(Service.KMS -> hostPortForKMS),
-      defaultRegion = None
-    )
-
+      edgeHostPort = hostPortForKMS,
+      hostNameExternal = Some(dockerHost)
+  )
 
   override protected val dockerControllers: Vector[DockerController] = Vector(controller)
-  override protected val waitPredicatesSettings: Map[DockerController, WaitPredicateSetting] =  Map(
-    controller -> WaitPredicateSetting(Duration.Inf, WaitPredicates.forListeningHostTcpPort(dockerHost, hostPortForKMS))
+  override protected val waitPredicatesSettings: Map[DockerController, WaitPredicateSetting] =     Map(
+    controller -> WaitPredicateSetting(Duration.Inf, WaitPredicates.forLogMessageExactly("Ready."))
   )
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(Span(20, Seconds), Span(1, Second))

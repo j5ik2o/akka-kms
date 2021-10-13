@@ -1,6 +1,6 @@
 val akka26Version = "2.6.4"
 
-name := "gdpr-assist"
+name := "akka-kms"
 
 version := "0.1"
 
@@ -22,8 +22,8 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor-testkit-typed" % akka26Version % Test,
   "ch.qos.logback" % "logback-classic" % "1.2.3" % Test,
   "org.scalatest" %% "scalatest" % "3.2.9" % Test,
-"com.github.j5ik2o" %% "docker-controller-scala-scalatest" % "1.2.1" % Test,
-"com.github.j5ik2o" %% "docker-controller-scala-localstack" % "1.2.1" % Test
+"com.github.j5ik2o" %% "docker-controller-scala-scalatest" % "1.8.44" % Test,
+"com.github.j5ik2o" %% "docker-controller-scala-localstack" % "1.8.44" % Test
 )
 
 scalacOptions ++=
@@ -37,4 +37,6 @@ scalacOptions ++=
     "-target:jvm-1.8"
   )
 
-PB.targets in Compile := Seq(scalapb.gen() -> (sourceManaged in Compile).value)
+Compile / PB.targets := Seq(scalapb.gen() -> (Compile / sourceManaged).value)
+
+envVars := Map("AWS_REGION" -> "ap-northeast-1")
